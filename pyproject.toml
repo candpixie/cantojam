@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cantojam"
+version = "0.1.0"
+description = "Melody and tone fit for Cantonese lyrics, measured from a corpus of Cantopop"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "Candy Xie" }]
+keywords = ["cantonese", "cantopop", "jyutping", "lyrics", "songwriting",
+            "tone", "melody", "粵語", "填詞", "協音"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Artistic Software",
+  "Topic :: Multimedia :: Sound/Audio :: Analysis",
+  "Natural Language :: Chinese (Traditional)",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://github.com/candpixie/cantojam"
+Source = "https://github.com/candpixie/cantojam"
+
+[project.scripts]
+cantojam = "cantojam.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["cantojam*"]
+
+[tool.setuptools.package-data]
+cantojam = ["data/*.json"]
