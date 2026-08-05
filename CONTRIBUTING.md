@@ -69,6 +69,24 @@ code cannot.
 README quotes specific percentages; if your change moves them, update the
 README in the same PR.
 
+## Calibrate your ear first
+
+The README says native-speaker judgement is the ground truth here. Before you
+rely on yours, measure it:
+
+```bash
+python scripts/eartest.py /path/to/Cantopop-corpus/Humdrum-files --rounds 20
+```
+
+Half the phrases are real, lifted unchanged from the corpus. Half have one
+interval bent to break a hard rule. You sing each one and say which is which.
+
+It reports sensitivity and false alarm rate separately, because answering
+"broken" every time scores 100% sensitivity and is worthless. `--model` scores
+cantojam on the same test as a baseline: its false alarm rate is about 23%, so
+it calls roughly a quarter of real professional phrases broken. Beat that and
+your ear is the better instrument.
+
 ## Reporting a wrong result
 
 If cantojam flags a line you know is fine, or misses one you know is wrong,
