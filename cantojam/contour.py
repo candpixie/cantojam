@@ -5,6 +5,8 @@ When the lyrics come first, the tones have already decided most of the shape,
 and this recovers it.
 """
 
+import math
+
 from .jyutping import Lexicon, syllabify
 from .model import ToneModel
 
@@ -97,35 +99,86 @@ def build_contour(text, key="F major", center="F4", section=None,
     if not sung:
         return {"syllables": syllables, "notes": [], "unresolved": True}
 
-    # Place each syllable where its tone sits, then repair the pairs.
-    pitches = [snap(center + model.level(s["tone"]) * spread, allowed)
-               for s in sung]
+    ideal_pitches = [center + model.level(s["tone"]) * spread for s in sung]
+    tonic_pitch = tonic % 12
+    dominant_pitch = (tonic + 7) % 12
+
+    beam_width = 128
+    beam = [(0.0, [])]
+
+    for i in range(len(sung)):
+        is_last = (i == len(sung) - 1)
+        ideal_p = ideal_pitches[i]
+        
+        new_beam = []
+        fallback_beam = []
+        
+        for cost, path in beam:
+            for p2 in allowed:
+                step_cost = 0.0
+                
+                step_cost += abs(p2 - ideal_p)
+                
+                pos = i / max(1, len(sung) - 1)
+                arc_target = ideal_p + (3 * spread) * math.sin(pos * math.pi)
+                step_cost += abs(p2 - arc_target) * 0.25
+                
+                if is_last:
+                    pc = p2 % 12
+                    if pc not in (tonic_pitch, dominant_pitch):
+                        step_cost += 2.0
+                
+                violation = False
+                if i > 0:
+                    p1 = path[-1]
+                    first, second = sung[i - 1]["tone"], sung[i]["tone"]
+                    want = model.required_direction(first, second)
+                    actual = (p2 > p1) - (p2 < p1)
+                    
+                    if want != 0 and actual != want:
+                        violation = True
+                        
+                    discouraged = model.discouraged_directions(first, second)
+                    if want == 0 and actual in discouraged:
+                        step_cost += 2.0
+                        
+                    step = p2 - p1
+                    median_step = model.suggested_interval(first, second) * spread
+                    step_cost += abs(step - median_step) * 0.5
+                    
+                    for j in range(1, i):
+                        if sung[j-1]["tone"] == first and sung[j]["tone"] == second:
+                            prev_step = path[j] - path[j-1]
+                            if step == prev_step:
+                                step_cost -= 1.0
+                            break
+
+                candidate = (cost + step_cost, path + [p2])
+                if not violation:
+                    new_beam.append(candidate)
+                else:
+                    fallback_beam.append((cost + step_cost + 1000.0, path + [p2]))
+                    
+        if not new_beam:
+            new_beam = fallback_beam
+            
+        new_beam.sort(key=lambda x: x[0])
+        beam = new_beam[:beam_width]
+
+    _, pitches = beam[0]
+
     warnings = []
     for i in range(1, len(pitches)):
         first, second = sung[i - 1]["tone"], sung[i]["tone"]
         want = model.required_direction(first, second)
         actual = (pitches[i] > pitches[i - 1]) - (pitches[i] < pitches[i - 1])
-        if want == 0:
-            # No hard rule, but avoid the moves the corpus almost never makes,
-            # such as rising off tone 1. Holding is the safe repair.
-            if actual in model.discouraged_directions(first, second):
-                if 0 not in model.discouraged_directions(first, second):
-                    pitches[i] = pitches[i - 1]
-                else:
-                    pitches[i] = step_from(pitches[i - 1], allowed, -actual)
-            continue
-        if actual == want:
-            continue
-        fixed = step_from(pitches[i - 1], allowed, want)
-        if fixed == pitches[i - 1]:
+        if want != 0 and actual != want:
             warnings.append({
                 "index": i,
                 "char": sung[i]["char"],
                 "reason": f"tone {first}->{second} must move "
                           f"{'up' if want > 0 else 'down'} but the range is exhausted",
             })
-            continue
-        pitches[i] = fixed
 
     notes = []
     for i, (syllable, pitch) in enumerate(zip(sung, pitches)):
