@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cantojam 協音 — melody and tone fit for Cantonese lyrics</title>
+<meta name="description" content="Type Cantonese lyrics and see the melody their tones demand. Drag notes and find out instantly when the melody fights the words. Measured from 37,877 sung syllables of Cantopop.">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎼</text></svg>">
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1><span class="han">協音</span><span class="rest">cantojam</span></h1>
+  <p class="tagline">
+    Cantonese has six tones, and a melody that moves against them turns your
+    words into different words. Type lyrics below to see the shape their tones
+    already demand, then drag any note and find out the moment the melody
+    starts fighting the language.
+  </p>
+  <p class="corpus-note" id="corpus-note"></p>
+</header>
+
+<div class="field" style="margin-bottom:4px">
+  <label for="lyrics">Lyrics, one phrase per line</label>
+</div>
+<textarea id="lyrics" spellcheck="false" aria-describedby="lyrics-hint"></textarea>
+<p class="hint" id="lyrics-hint">
+  Drag a note to move it, or focus one and use <kbd>↑</kbd> <kbd>↓</kbd>.
+  Hover a red or amber connector to see what the corpus says. Everything runs
+  in this page: no server, no upload, works offline.
+</p>
+
+<div class="controls">
+  <div class="field">
+    <label for="key">Key</label>
+    <select id="key">
+      <option>C major</option><option>D major</option><option>E major</option>
+      <option selected>F major</option><option>G major</option>
+      <option>A major</option><option>Bb major</option><option>Eb major</option>
+      <option>A minor</option><option>D minor</option><option>E minor</option>
+      <option>C minor</option><option>D dorian</option>
+      <option>G mixolydian</option><option>C pentatonic</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="center">Centred on</label>
+    <select id="center">
+      <option>C4</option><option>D4</option><option>E4</option>
+      <option selected>F4</option><option>G4</option><option>A4</option>
+      <option>C5</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="section">Section</label>
+    <select id="section">
+      <option value="">none</option>
+      <option value="verse">verse (−3)</option>
+      <option value="prechorus">prechorus (−1)</option>
+      <option value="chorus">chorus (+1)</option>
+      <option value="bridge">bridge (+2)</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="spread">Range <span id="spread-out">2.0</span></label>
+    <input type="range" id="spread" min="0.5" max="3.5" step="0.1" value="2">
+  </div>
+  <div class="field">
+    <label for="tempo">Tempo <span id="tempo-out">92</span></label>
+    <input type="range" id="tempo" min="50" max="160" step="2" value="92">
+  </div>
+  <div class="spacer"></div>
+  <button id="redraft" class="primary" title="Discard edits and rebuild from the tones">Redraft all</button>
+  <button id="play-all">Play all</button>
+  <button id="midi">Download MIDI</button>
+  <button id="theme" aria-label="Toggle colour theme">◐</button>
+</div>
+
+<div id="lines"></div>
+
+<section class="finder" id="finder">
+  <div class="finder-head">
+    <h2>Word finder</h2>
+    <p>
+      Not a dictionary. This is every word and phrase the corpus's lyricists
+      actually wrote, so everything here is already in register and already
+      singable. Click a note above to fill the slot, and the list narrows to
+      words whose tones the melody will actually accept.
+    </p>
+  </div>
+  <div class="controls finder-controls">
+    <div class="field">
+      <label for="slot">Slot</label>
+      <select id="slot"><option value="">anywhere</option></select>
+    </div>
+    <div class="field">
+      <label for="wlen">Syllables</label>
+      <select id="wlen">
+        <option value="1">1</option>
+        <option value="2" selected>2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="rhyme">Rhymes with</label>
+      <input type="text" id="rhyme" placeholder="話 or waa6" size="9">
+    </div>
+    <div class="field">
+      <label for="contains">Contains</label>
+      <input type="text" id="contains" placeholder="心" size="7">
+    </div>
+    <div class="field">
+      <label for="tonepat">Tone pattern</label>
+      <input type="text" id="tonepat" placeholder="4?6" size="7">
+    </div>
+    <div class="field">
+      <label for="mincount">Min uses <span id="mincount-out">1</span></label>
+      <input type="range" id="mincount" min="1" max="10" step="1" value="1">
+    </div>
+    <div class="spacer"></div>
+    <button id="find" class="primary">Find words</button>
+  </div>
+  <div id="finder-results"></div>
+</section>
+
+<details class="reference">
+  <summary>What the corpus actually says</summary>
+  <div class="ref-body">
+    <table class="tones" id="ladder">
+      <caption>
+        Where each tone sits, in semitones relative to a song's median pitch.
+        Two things fall out that the traditional 0243 ladder gets wrong: tone 5
+        sits with tone 3 rather than with tone 6, and tone 4 is a cliff, roughly
+        three semitones below everything else.
+      </caption>
+    </table>
+    <table class="tones" id="pairs">
+      <caption>
+        Median melodic interval between two tones, in semitones, with the number
+        of corpus examples. Bold cells are the 23 pairs where one direction
+        happens at least 80% of the time, which cantojam treats as hard rules.
+      </caption>
+    </table>
+  </div>
+</details>
+
+<footer>
+  <p>
+    Model derived from
+    <a href="https://github.com/jasonleeubc/Cantopop-corpus">Jason Lee's Cantopop corpus</a>
+    (CC BY 4.0). Inspired by
+    <a href="https://github.com/bill-iu/Canto-0243">Canto-0243</a>, whose code and
+    data are not used here. Source and full attribution at
+    <a href="https://github.com/candpixie/cantojam">candpixie/cantojam</a>.
+  </p>
+</footer>
+
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
