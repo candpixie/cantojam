@@ -28,8 +28,9 @@
 <textarea id="lyrics" spellcheck="false" aria-describedby="lyrics-hint"></textarea>
 <p class="hint" id="lyrics-hint">
   Drag a note to move it, or focus one and use <kbd>↑</kbd> <kbd>↓</kbd>.
-  Hover a red or amber connector to see what the corpus says. Everything runs
-  in this page: no server, no upload, works offline.
+  Hover a red or amber connector to see what the corpus says. Your draft saves
+  itself in this browser, and <strong>Copy link</strong> puts the whole thing in
+  a URL. There is no server and no account: nothing you write is ever uploaded.
 </p>
 
 <div class="controls">
@@ -73,7 +74,9 @@
   <div class="spacer"></div>
   <button id="redraft" class="primary" title="Discard edits and rebuild from the tones">Redraft all</button>
   <button id="play-all">Play all</button>
+  <button id="share">Copy link</button>
   <button id="midi">Download MIDI</button>
+  <button id="reset" title="Clear this browser's saved draft">Reset</button>
   <button id="theme" aria-label="Toggle colour theme">◐</button>
 </div>
 

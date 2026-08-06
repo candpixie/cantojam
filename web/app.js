@@ -1,4 +1,5 @@
 import * as cj from "./cantojam.js";
+import * as share from "./share.js";
 
 const DEFAULT_LYRICS = `今日天氣真係好
 我哋一齊去食飯
@@ -68,6 +69,7 @@ function redraft(index = null) {
     line.edited = false;
   });
   render();
+  scheduleSave();
 }
 
 // ------------------------------------------------------------------ render
@@ -281,6 +283,7 @@ function attachDrag(group, allowed, lineIndex, noteIndex) {
     line.pitches[noteIndex] = allowed[next];
     line.edited = true;
     render();
+    scheduleSave();
     const again = document.querySelector(
       `.note[data-line="${lineIndex}"][data-index="${noteIndex}"]`);
     if (again) again.focus({ preventScroll: true });
@@ -302,6 +305,7 @@ function attachDrag(group, allowed, lineIndex, noteIndex) {
       line.pitches[noteIndex] = allowed[target];
       line.edited = true;
       render();
+      scheduleSave();
     };
     const onUp = () => {
       group.classList.remove("dragging");
@@ -493,6 +497,63 @@ function rowOf(tag, values) {
   return tr;
 }
 
+// ------------------------------------------------------------- persistence
+
+function snapshot() {
+  return {
+    lyrics: el("lyrics").value,
+    key: state.key, center: state.center, section: state.section,
+    spread: state.spread, tempo: state.tempo, lines: state.lines,
+  };
+}
+
+let saveTimer = null;
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => share.save(snapshot()), 400);
+}
+
+function restore(draft) {
+  el("lyrics").value = draft.lyrics;
+  state.key = draft.key;
+  state.center = draft.center;
+  state.section = draft.section;
+  state.spread = draft.spread;
+  state.tempo = draft.tempo;
+  el("key").value = draft.key;
+  el("center").value = draft.center;
+  el("section").value = draft.section;
+  el("spread").value = draft.spread;
+  el("spread-out").textContent = Number(draft.spread).toFixed(1);
+  el("tempo").value = draft.tempo;
+  el("tempo-out").textContent = draft.tempo;
+
+  rebuildLines({ keepEdits: false });
+  // Reapply hand-edited melodies; unedited lines stay derived from the tones.
+  (draft.pitches || []).forEach((pitches, i) => {
+    if (!pitches || !state.lines[i]) return;
+    if (pitches.length !== state.lines[i].pitches.length) return;
+    state.lines[i].pitches = pitches.slice();
+    state.lines[i].edited = true;
+  });
+  render();
+}
+
+async function copyShareLink() {
+  const url = share.shareUrl(snapshot());
+  const button = el("share");
+  try {
+    await navigator.clipboard.writeText(url);
+    button.textContent = url.length > 1800 ? "Copied (long link)" : "Link copied";
+  } catch (error) {
+    // Clipboard needs a secure context and permission; fall back to the hash
+    // so the user can copy from the address bar themselves.
+    location.hash = `d=${share.encode(snapshot())}`;
+    button.textContent = "Link in address bar";
+  }
+  setTimeout(() => { button.textContent = "Copy link"; }, 2200);
+}
+
 // ----------------------------------------------------------------- finder
 
 function syncSlotSelect() {
@@ -600,9 +661,11 @@ function insertWord(entry) {
 function refresh({ keepEdits = true } = {}) {
   rebuildLines({ keepEdits });
   render();
+  scheduleSave();
 }
 
-el("lyrics").value = DEFAULT_LYRICS;
+const incoming = share.readIncoming();
+el("lyrics").value = incoming ? incoming.draft.lyrics : DEFAULT_LYRICS;
 el("lyrics").addEventListener("input", () => refresh());
 
 for (const id of ["key", "center", "section"]) {
@@ -638,6 +701,13 @@ for (const id of ["wlen", "rhyme", "contains", "tonepat"]) {
   el(id).addEventListener("change", runFinder);
 }
 
+el("share").onclick = copyShareLink;
+el("reset").onclick = () => {
+  share.clear();
+  location.hash = "";
+  el("lyrics").value = DEFAULT_LYRICS;
+  refresh({ keepEdits: false });
+};
 el("redraft").onclick = () => redraft();
 el("play-all").onclick = playAll;
 el("midi").onclick = downloadMidi;
@@ -654,5 +724,17 @@ document.addEventListener("keydown", (event) => {
 });
 
 buildReference();
-refresh();
+if (incoming) {
+  restore(incoming.draft);
+} else {
+  refresh();
+}
 syncSlotSelect();
+
+if (incoming && incoming.source === "link") {
+  const note = document.createElement("p");
+  note.className = "hint";
+  note.textContent = "Opened from a shared link. Edits are saved in this " +
+    "browser only, and never leave it.";
+  el("lines").before(note);
+}
