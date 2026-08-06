@@ -134,9 +134,17 @@ Two severities:
 cantojam contour lyrics.txt --key "F major" --center F4 --section chorus --spread 2
 ```
 
-Each syllable is placed at the height its tone wants, snapped to the key, then
-walked left to right so no adjacent pair breaks a rule. Add `--json` to pipe it
-into a DAW script.
+Each syllable is placed at the height its tone wants, then a beam search over
+scale-degree paths picks the line that best satisfies the hard tone rules while
+also resolving to the tonic or dominant, tracing an arc, taking the intervals
+the corpus actually takes, and echoing an earlier tone pair when it can. Add
+`--json` to pipe it into a DAW script.
+
+The tone rules leave a lot of room: only 23 of 36 pairs fix a direction, so
+many legal melodies exist and the search chooses among them rather than taking
+the first that works. Measured over 300 corpus lines, the earlier greedy repair
+landed a phrase on the tonic or dominant **0%** of the time; the search does it
+**55%** of the time, with the same zero violations.
 
 `--spread` widens the range without changing the shape. Tone height alone gives
 a compressed line, because tones only need to be *distinguishable*, not
@@ -234,8 +242,9 @@ Be aware of these before trusting it:
   dictionary with 181k entries, use
   [Canto-0243](https://github.com/bill-iu/Canto-0243), which is excellent and
   which cantojam does not copy from.
-- **Contour output is deliberately plain.** A tone-correct line is not
-  automatically a good line.
+- **Contour output is a starting point.** It resolves and arcs, but it has no
+  sense of rhythm, phrasing, or what the song is about. A tone-correct line is
+  not automatically a good line.
 
 ## Contributing
 

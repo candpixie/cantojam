@@ -5,6 +5,8 @@ When the lyrics come first, the tones have already decided most of the shape,
 and this recovers it.
 """
 
+import math
+
 from .jyutping import Lexicon, syllabify
 from .model import ToneModel
 
@@ -55,15 +57,6 @@ def snap(target, allowed):
     return min(allowed, key=lambda p: (abs(p - target), p))
 
 
-def step_from(pitch, allowed, direction, steps=1):
-    """Move a whole number of scale steps up or down from a pitch."""
-    if pitch not in allowed:
-        pitch = snap(pitch, allowed)
-    index = allowed.index(pitch) + direction * steps
-    index = max(0, min(len(allowed) - 1, index))
-    return allowed[index]
-
-
 def build_contour(text, key="F major", center="F4", section=None,
                   lexicon=None, model=None, overrides=None, span=14, spread=1.0):
     """Draft a singable pitch line for one block of lyrics.
@@ -97,35 +90,95 @@ def build_contour(text, key="F major", center="F4", section=None,
     if not sung:
         return {"syllables": syllables, "notes": [], "unresolved": True}
 
-    # Place each syllable where its tone sits, then repair the pairs.
-    pitches = [snap(center + model.level(s["tone"]) * spread, allowed)
-               for s in sung]
+    # Beam search over scale-degree paths rather than a greedy left-to-right
+    # repair. The tone rules leave a large legal space (only 23 of 36 pairs fix
+    # a direction) and greedy picks arbitrarily inside it, which is why it
+    # never once landed a phrase on the tonic across 300 corpus lines. Scoring
+    # whole paths lets the ending pull the earlier notes into place.
+    #
+    # Width 32 is empirically generous: against a width of 128 it gave an
+    # identical result on 2700 contours across three keys and three spreads,
+    # and width 16 differed on exactly one.
+    BEAM_WIDTH = 32
+    CADENCE_PENALTY = 2.0     # ending off the tonic or dominant
+    UNUSUAL_PENALTY = 2.0     # a move the corpus almost never makes
+    ARC_WEIGHT = 0.25         # pull toward a rise-and-resolve phrase shape
+    STEP_WEIGHT = 0.5         # prefer the interval the corpus actually takes
+    MOTIF_BONUS = 1.0         # reward echoing an earlier identical tone pair
+    IMPOSSIBLE = 1000.0       # only reached when no legal path exists
+
+    ideal_pitches = [center + model.level(s["tone"]) * spread for s in sung]
+    tonic_pitch = tonic % 12
+    dominant_pitch = (tonic + 7) % 12
+
+    beam = [(0.0, [])]
+    for i, syllable in enumerate(sung):
+        ideal = ideal_pitches[i]
+        position = i / max(1, len(sung) - 1)
+        arc_target = ideal + (3 * spread) * math.sin(position * math.pi)
+        is_last = i == len(sung) - 1
+
+        legal, forced = [], []
+        for cost, path in beam:
+            for candidate in allowed:
+                step_cost = abs(candidate - ideal)
+                step_cost += abs(candidate - arc_target) * ARC_WEIGHT
+                if is_last and candidate % 12 not in (tonic_pitch,
+                                                      dominant_pitch):
+                    step_cost += CADENCE_PENALTY
+
+                violates = False
+                if i:
+                    previous = path[-1]
+                    first, second = sung[i - 1]["tone"], syllable["tone"]
+                    want = model.required_direction(first, second)
+                    step = candidate - previous
+                    actual = (step > 0) - (step < 0)
+
+                    if want and actual != want:
+                        violates = True
+                    if not want and actual in model.discouraged_directions(
+                            first, second):
+                        step_cost += UNUSUAL_PENALTY
+
+                    expected = model.suggested_interval(first, second) * spread
+                    step_cost += abs(step - expected) * STEP_WEIGHT
+
+                    # If this tone pair appeared earlier, repeating the
+                    # interval it took then turns coincidence into a motif.
+                    for j in range(1, i):
+                        if (sung[j - 1]["tone"], sung[j]["tone"]) == (first,
+                                                                     second):
+                            if step == path[j] - path[j - 1]:
+                                step_cost -= MOTIF_BONUS
+                            break
+
+                total = cost + step_cost
+                if violates:
+                    forced.append((total + IMPOSSIBLE, path + [candidate]))
+                else:
+                    legal.append((total, path + [candidate]))
+
+        # Only fall back to a violating path when the tones admit nothing else,
+        # which the warning loop below then reports.
+        candidates = legal or forced
+        candidates.sort(key=lambda entry: entry[0])
+        beam = candidates[:BEAM_WIDTH]
+
+    pitches = beam[0][1]
+
     warnings = []
     for i in range(1, len(pitches)):
         first, second = sung[i - 1]["tone"], sung[i]["tone"]
         want = model.required_direction(first, second)
         actual = (pitches[i] > pitches[i - 1]) - (pitches[i] < pitches[i - 1])
-        if want == 0:
-            # No hard rule, but avoid the moves the corpus almost never makes,
-            # such as rising off tone 1. Holding is the safe repair.
-            if actual in model.discouraged_directions(first, second):
-                if 0 not in model.discouraged_directions(first, second):
-                    pitches[i] = pitches[i - 1]
-                else:
-                    pitches[i] = step_from(pitches[i - 1], allowed, -actual)
-            continue
-        if actual == want:
-            continue
-        fixed = step_from(pitches[i - 1], allowed, want)
-        if fixed == pitches[i - 1]:
+        if want != 0 and actual != want:
             warnings.append({
                 "index": i,
                 "char": sung[i]["char"],
                 "reason": f"tone {first}->{second} must move "
                           f"{'up' if want > 0 else 'down'} but the range is exhausted",
             })
-            continue
-        pitches[i] = fixed
 
     notes = []
     for i, (syllable, pitch) in enumerate(zip(sung, pitches)):

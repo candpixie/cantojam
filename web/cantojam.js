@@ -210,13 +210,6 @@ function snap(target, allowed) {
   return best;
 }
 
-function stepFrom(pitch, allowed, direction, steps = 1) {
-  if (!allowed.includes(pitch)) pitch = snap(pitch, allowed);
-  let index = allowed.indexOf(pitch) + direction * steps;
-  index = Math.max(0, Math.min(allowed.length - 1, index));
-  return allowed[index];
-}
-
 // ------------------------------------------------------------------ check
 
 export function check(text, melody, overrides = {}) {
@@ -300,35 +293,93 @@ export function buildContour(text, {
     return { syllables, notes: [], warnings: [], unresolved: [], key, section };
   }
 
-  const pitches = sung.map((s) => snap(centre + level(s.tone) * spread, allowed));
-  const warnings = [];
+  // Beam search over scale-degree paths rather than a greedy repair. Mirrors
+  // cantojam/contour.py exactly; tests/test_parity.py fails if they diverge.
+  const BEAM_WIDTH = 32;
+  const CADENCE_PENALTY = 2.0;
+  const UNUSUAL_PENALTY = 2.0;
+  const ARC_WEIGHT = 0.25;
+  const STEP_WEIGHT = 0.5;
+  const MOTIF_BONUS = 1.0;
+  const IMPOSSIBLE = 1000.0;
 
+  const idealPitches = sung.map((s) => centre + level(s.tone) * spread);
+  const tonicPitch = ((tonic % 12) + 12) % 12;
+  const dominantPitch = ((tonic + 7) % 12 + 12) % 12;
+
+  let beam = [[0, []]];
+  for (let i = 0; i < sung.length; i += 1) {
+    const ideal = idealPitches[i];
+    const position = i / Math.max(1, sung.length - 1);
+    const arcTarget = ideal + 3 * spread * Math.sin(position * Math.PI);
+    const isLast = i === sung.length - 1;
+
+    const legal = [];
+    const forced = [];
+    for (const [cost, path] of beam) {
+      for (const candidate of allowed) {
+        let stepCost = Math.abs(candidate - ideal);
+        stepCost += Math.abs(candidate - arcTarget) * ARC_WEIGHT;
+        const pc = ((candidate % 12) + 12) % 12;
+        if (isLast && pc !== tonicPitch && pc !== dominantPitch) {
+          stepCost += CADENCE_PENALTY;
+        }
+
+        let violates = false;
+        if (i) {
+          const previous = path[path.length - 1];
+          const first = sung[i - 1].tone;
+          const second = sung[i].tone;
+          const want = requiredDirection(first, second);
+          const step = candidate - previous;
+          const actual = Math.sign(step);
+
+          if (want && actual !== want) violates = true;
+          if (!want && discouragedDirections(first, second).includes(actual)) {
+            stepCost += UNUSUAL_PENALTY;
+          }
+
+          const expected = suggestedInterval(first, second) * spread;
+          stepCost += Math.abs(step - expected) * STEP_WEIGHT;
+
+          // If this tone pair appeared earlier, repeating the interval it took
+          // then turns coincidence into a motif.
+          for (let j = 1; j < i; j += 1) {
+            if (sung[j - 1].tone === first && sung[j].tone === second) {
+              if (step === path[j] - path[j - 1]) stepCost -= MOTIF_BONUS;
+              break;
+            }
+          }
+        }
+
+        const total = cost + stepCost;
+        if (violates) forced.push([total + IMPOSSIBLE, path.concat(candidate)]);
+        else legal.push([total, path.concat(candidate)]);
+      }
+    }
+
+    const candidates = legal.length ? legal : forced;
+    // Python's sort is stable and compares the cost first; matching that
+    // exactly is what keeps the two implementations byte-identical.
+    candidates.sort((a, b) => a[0] - b[0]);
+    beam = candidates.slice(0, BEAM_WIDTH);
+  }
+
+  const pitches = beam[0][1];
+  const warnings = [];
   for (let i = 1; i < pitches.length; i += 1) {
     const first = sung[i - 1].tone;
     const second = sung[i].tone;
     const want = requiredDirection(first, second);
     const actual = Math.sign(pitches[i] - pitches[i - 1]);
-    if (want === 0) {
-      const discouraged = discouragedDirections(first, second);
-      if (discouraged.includes(actual)) {
-        pitches[i] = discouraged.includes(0)
-          ? stepFrom(pitches[i - 1], allowed, -actual)
-          : pitches[i - 1];
-      }
-      continue;
-    }
-    if (actual === want) continue;
-    const fixed = stepFrom(pitches[i - 1], allowed, want);
-    if (fixed === pitches[i - 1]) {
+    if (want !== 0 && actual !== want) {
       warnings.push({
         index: i,
         char: sung[i].char,
         reason: `tone ${first}->${second} must move ` +
                 `${want > 0 ? "up" : "down"} but the range is exhausted`,
       });
-      continue;
     }
-    pitches[i] = fixed;
   }
 
   const base = allowed.indexOf(snap(centre, allowed));
