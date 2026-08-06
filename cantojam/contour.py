@@ -85,8 +85,11 @@ def build_contour(text, key="F major", center="F4", section=None,
         center += model.section_offset(section)
 
     allowed = scale_pitches(tonic, scale, int(center - span), int(center + span))
-    syllables = [s for s in syllabify(text, lexicon) if not s["skipped"]]
-    sung = [s for s in syllables if s["tone"]]
+    # A syllable the lexicon cannot read still gets a note. Dropping it would
+    # silently shorten the melody and shift every syllable after it, when what
+    # a singer actually does is keep the word and give it a rhythm.
+    sung = [s for s in syllabify(text, lexicon) if not s["skipped"]]
+    syllables = sung
     if not sung:
         return {"syllables": syllables, "notes": [], "unresolved": True}
 
@@ -107,19 +110,27 @@ def build_contour(text, key="F major", center="F4", section=None,
     MOTIF_BONUS = 1.0         # reward echoing an earlier identical tone pair
     IMPOSSIBLE = 1000.0       # only reached when no legal path exists
 
-    ideal_pitches = [center + model.level(s["tone"]) * spread for s in sung]
+    # An unreadable syllable has no tone, so no height of its own and no claim
+    # on the notes either side. It holds the previous pitch: present in the
+    # rhythm, silent about the contour.
+    ideal_pitches = [center + model.level(s["tone"]) * spread if s["tone"]
+                     else None for s in sung]
     tonic_pitch = tonic % 12
     dominant_pitch = (tonic + 7) % 12
 
     beam = [(0.0, [])]
     for i, syllable in enumerate(sung):
-        ideal = ideal_pitches[i]
         position = i / max(1, len(sung) - 1)
-        arc_target = ideal + (3 * spread) * math.sin(position * math.pi)
         is_last = i == len(sung) - 1
 
         legal, forced = [], []
         for cost, path in beam:
+            # Toneless syllables anchor to wherever this path already is.
+            ideal = ideal_pitches[i]
+            if ideal is None:
+                ideal = path[-1] if path else center
+            arc_target = ideal + (3 * spread) * math.sin(position * math.pi)
+
             for candidate in allowed:
                 step_cost = abs(candidate - ideal)
                 step_cost += abs(candidate - arc_target) * ARC_WEIGHT
@@ -128,7 +139,7 @@ def build_contour(text, key="F major", center="F4", section=None,
                     step_cost += CADENCE_PENALTY
 
                 violates = False
-                if i:
+                if i and syllable["tone"] and sung[i - 1]["tone"]:
                     previous = path[-1]
                     first, second = sung[i - 1]["tone"], syllable["tone"]
                     want = model.required_direction(first, second)
@@ -170,6 +181,8 @@ def build_contour(text, key="F major", center="F4", section=None,
     warnings = []
     for i in range(1, len(pitches)):
         first, second = sung[i - 1]["tone"], sung[i]["tone"]
+        if not (first and second):
+            continue
         want = model.required_direction(first, second)
         actual = (pitches[i] > pitches[i - 1]) - (pitches[i] < pitches[i - 1])
         if want != 0 and actual != want:
@@ -195,9 +208,10 @@ def build_contour(text, key="F major", center="F4", section=None,
         if i:
             first, second = sung[i - 1]["tone"], syllable["tone"]
             entry["interval"] = pitch - pitches[i - 1]
-            entry["required"] = model.required_direction(first, second)
-            entry["corpus_median"] = model.suggested_interval(first, second)
-            entry["confidence"] = model.confidence(first, second)
+            if first and second:
+                entry["required"] = model.required_direction(first, second)
+                entry["corpus_median"] = model.suggested_interval(first, second)
+                entry["confidence"] = model.confidence(first, second)
         notes.append(entry)
 
     return {

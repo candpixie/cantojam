@@ -185,6 +185,25 @@ class TestContour:
         contour = build_contour("我龘你")
         assert "龘" in contour["unresolved"]
 
+    def test_unknown_character_still_gets_a_note(self):
+        # Dropping it would shorten the melody and shift every syllable after
+        # it. A singer keeps the word and gives it a rhythm instead.
+        contour = build_contour("未畏龘忍淚")
+        assert len(contour["notes"]) == 5
+        assert [n["char"] for n in contour["notes"]] == list("未畏龘忍淚")
+
+    def test_unknown_character_holds_the_previous_pitch(self):
+        contour = build_contour("未畏龘忍淚")
+        notes = contour["notes"]
+        assert notes[2]["midi"] == notes[1]["midi"]
+        assert notes[2]["tone"] is None
+
+    def test_unknown_character_breaks_the_constraint_chain(self):
+        # 畏 and 忍 are no longer adjacent, so neither constrains the other.
+        contour = build_contour("未畏龘忍淚")
+        melody = [n["midi"] for n in contour["notes"]]
+        assert check("未畏龘忍淚", melody)["violations"] == []
+
     def test_render_is_drawable(self):
         drawn = render(build_contour(LINES[0]))
         assert "今" in drawn and "\n" in drawn
@@ -218,6 +237,21 @@ class TestCheck:
         assert result["violations"] == []
         assert len(result["unusual"]) == 1
         assert "rare" in result["unusual"][0]["message"]
+
+    def test_unknown_character_is_not_a_length_mismatch(self):
+        contour = build_contour("未畏龘忍淚")
+        result = check("未畏龘忍淚", [n["midi"] for n in contour["notes"]])
+        assert not result["length_mismatch"]
+        assert result["syllables"] == 5
+        assert len(result["rows"]) == 5
+
+    def test_unknown_character_never_violates(self):
+        # Whatever the melody does around it, an unreadable syllable cannot be
+        # wrong, because nothing is known about its tone.
+        for melody in ([60, 72, 55, 67, 60], [60, 55, 72, 55, 72]):
+            for row in check("未畏龘忍淚", melody)["rows"]:
+                if row["char"] == "龘":
+                    assert not row["violation"]
 
     def test_length_mismatch_is_reported(self):
         result = check("我係邊個", [60, 62])

@@ -217,7 +217,9 @@ export function check(text, melody, overrides = {}) {
     ? melody.replace(/,/g, " ").split(/\s+/).filter(Boolean)
     : melody).map((n) => (typeof n === "number" ? n : parseNote(n)));
 
-  const sung = syllabify(text, overrides).filter((s) => !s.skipped && s.tone);
+  // Toneless syllables still occupy a note, matching buildContour. They can
+  // never be a violation and they break the constraint between neighbours.
+  const sung = syllabify(text, overrides).filter((s) => !s.skipped);
   const rows = [];
 
   sung.forEach((syllable, i) => {
@@ -231,7 +233,8 @@ export function check(text, melody, overrides = {}) {
       violation: false,
       unusual: false,
     };
-    if (i && row.midi !== null && rows[i - 1].midi !== null) {
+    if (i && row.midi !== null && rows[i - 1].midi !== null
+        && syllable.tone && sung[i - 1].tone) {
       const first = sung[i - 1].tone;
       const second = syllable.tone;
       const interval = row.midi - rows[i - 1].midi;
@@ -287,8 +290,10 @@ export function buildContour(text, {
   const allowed = scalePitches(tonic, scale,
                                Math.round(centre - span),
                                Math.round(centre + span));
+  // A syllable the lexicon cannot read still gets a note. Dropping it would
+  // silently shorten the melody and shift everything after it.
   const syllables = syllabify(text, overrides).filter((s) => !s.skipped);
-  const sung = syllables.filter((s) => s.tone);
+  const sung = syllables;
   if (!sung.length) {
     return { syllables, notes: [], warnings: [], unresolved: [], key, section };
   }
@@ -303,20 +308,24 @@ export function buildContour(text, {
   const MOTIF_BONUS = 1.0;
   const IMPOSSIBLE = 1000.0;
 
-  const idealPitches = sung.map((s) => centre + level(s.tone) * spread);
+  const idealPitches = sung.map((s) =>
+    (s.tone ? centre + level(s.tone) * spread : null));
   const tonicPitch = ((tonic % 12) + 12) % 12;
   const dominantPitch = ((tonic + 7) % 12 + 12) % 12;
 
   let beam = [[0, []]];
   for (let i = 0; i < sung.length; i += 1) {
-    const ideal = idealPitches[i];
     const position = i / Math.max(1, sung.length - 1);
-    const arcTarget = ideal + 3 * spread * Math.sin(position * Math.PI);
     const isLast = i === sung.length - 1;
 
     const legal = [];
     const forced = [];
     for (const [cost, path] of beam) {
+      // Toneless syllables anchor to wherever this path already is.
+      let ideal = idealPitches[i];
+      if (ideal === null) ideal = path.length ? path[path.length - 1] : centre;
+      const arcTarget = ideal + 3 * spread * Math.sin(position * Math.PI);
+
       for (const candidate of allowed) {
         let stepCost = Math.abs(candidate - ideal);
         stepCost += Math.abs(candidate - arcTarget) * ARC_WEIGHT;
@@ -326,7 +335,7 @@ export function buildContour(text, {
         }
 
         let violates = false;
-        if (i) {
+        if (i && sung[i].tone && sung[i - 1].tone) {
           const previous = path[path.length - 1];
           const first = sung[i - 1].tone;
           const second = sung[i].tone;
@@ -370,6 +379,7 @@ export function buildContour(text, {
   for (let i = 1; i < pitches.length; i += 1) {
     const first = sung[i - 1].tone;
     const second = sung[i].tone;
+    if (!first || !second) continue;
     const want = requiredDirection(first, second);
     const actual = Math.sign(pitches[i] - pitches[i - 1]);
     if (want !== 0 && actual !== want) {
@@ -398,9 +408,11 @@ export function buildContour(text, {
       const first = sung[i - 1].tone;
       const second = syllable.tone;
       entry.interval = pitches[i] - pitches[i - 1];
-      entry.required = requiredDirection(first, second);
-      entry.corpus_median = suggestedInterval(first, second);
-      entry.confidence = confidence(first, second);
+      if (first && second) {
+        entry.required = requiredDirection(first, second);
+        entry.corpus_median = suggestedInterval(first, second);
+        entry.confidence = confidence(first, second);
+      }
     }
     return entry;
   });

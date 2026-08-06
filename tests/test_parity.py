@@ -36,6 +36,7 @@ LINES = [
     "佢買咗好多嘢返屋企",
     "街市啲生果好新鮮",
     "呢個係我嘅位置",
+    "未畏龘忍淚",          # contains a syllable the lexicon cannot read
 ]
 
 KEYS = ["F major", "C major", "G major", "Bb major", "A minor", "D dorian"]

@@ -41,7 +41,10 @@ def check(text, melody, lexicon=None, model=None, overrides=None):
     model = model or ToneModel()
     lexicon = lexicon or Lexicon(overrides)
     pitches = parse_melody(melody)
-    sung = [s for s in syllabify(text, lexicon) if not s["skipped"] and s["tone"]]
+    # Toneless syllables still occupy a note, matching build_contour. They can
+    # never be a violation and they break the constraint between their
+    # neighbours, because nothing is known about what sits between them.
+    sung = [s for s in syllabify(text, lexicon) if not s["skipped"]]
 
     rows = []
     for i, syllable in enumerate(sung):
@@ -55,7 +58,8 @@ def check(text, melody, lexicon=None, model=None, overrides=None):
             "violation": False,
             "unusual": False,
         }
-        if i and row["midi"] is not None and rows[i - 1]["midi"] is not None:
+        if (i and row["midi"] is not None and rows[i - 1]["midi"] is not None
+                and syllable["tone"] and sung[i - 1]["tone"]):
             first, second = sung[i - 1]["tone"], syllable["tone"]
             interval = row["midi"] - rows[i - 1]["midi"]
             actual = (interval > 0) - (interval < 0)
