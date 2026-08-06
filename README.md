@@ -1,5 +1,9 @@
 # cantojam 協音
 
+<p align="center">
+  <b>English</b> · <a href="README.zh-Hant.md">繁體中文</a>
+</p>
+
 **Melody and tone fit for Cantonese lyrics, measured rather than assumed.**
 
 **Web app: https://candpixie.github.io/cantojam/** — type lyrics, drag notes,
