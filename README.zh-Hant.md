@@ -6,7 +6,7 @@
 
 **粵語歌詞的協音工具，一切以語料實測為準，而非憑經驗推斷。**
 
-**網頁版：https://candpixie.github.io/cantojam/** — 輸入歌詞、拖曳音符、即時試聽、
+**網頁版：https://cantojam.vercel.app** — 輸入歌詞、拖曳音符、即時試聽、
 尋找可用的字詞。無伺服器、無上載、可離線使用。
 
 粵語有六個聲調，旋律若與聲調背道而馳，字就會被聽成另一個字。填詞人向來明白這一點，
@@ -81,7 +81,7 @@ pip install -e .
 ## 網頁版
 
 以下所有功能同樣可在瀏覽器直接使用：
-[candpixie.github.io/cantojam](https://candpixie.github.io/cantojam/)
+[cantojam.vercel.app](https://cantojam.vercel.app)
 
 - 一邊輸入歌詞，一邊看著聲調所要求的旋律輪廓浮現。
 - **拖曳任何一個音符**，旋律一旦與字音衝突，連線即時轉為紅色，游標停留更會顯示語料證據。

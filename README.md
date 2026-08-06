@@ -6,8 +6,8 @@
 
 **Melody and tone fit for Cantonese lyrics, measured rather than assumed.**
 
-**Web app: https://candpixie.github.io/cantojam/** — type lyrics, drag notes,
-hear it, find words that fit. No server, no upload, works offline.
+**Web app: https://cantojam.vercel.app** — type lyrics, drag notes, hear it,
+find words that fit. No server, no upload, works offline.
 
 Cantonese has six tones, and a melody that moves against them makes the words
 sound like different words. Lyricists have always known this. The rules of
@@ -90,7 +90,7 @@ semitones.
 ## The web app
 
 Everything below also runs in the browser at
-[candpixie.github.io/cantojam](https://candpixie.github.io/cantojam/), which is
+[cantojam.vercel.app](https://cantojam.vercel.app), which is
 the easier way in:
 
 - Type lyrics and watch the contour their tones demand appear as you go.
