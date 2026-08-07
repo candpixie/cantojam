@@ -149,6 +149,13 @@ def cmd_model(args):
             stats = model.transition(first, second)
             row += f"{stats['median']:+5g}({stats['n']:5d})" if stats else "     -     "
         print(row)
+    print("\nthe two claims that contradict the 0243 ladder, with 95% intervals:")
+    for first, second, way in (("6", "5", "up"), ("5", "6", "down"),
+                               ("4", "1", "up"), ("4", "6", "up")):
+        band = model.interval_for(first, second, way)
+        print(f"  {first}->{second} {way:<5} {band['rate']:6.1%}  "
+              f"n={band['n']:5d}  95% CI [{band['low']:.1%}, {band['high']:.1%}]")
+
     print("\nsection pitch, semitones relative to song median:")
     for name, stats in sorted(model.sections.items(),
                               key=lambda kv: -kv[1]["median_offset"]):

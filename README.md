@@ -83,6 +83,16 @@ Two corrections to the four-level model fall out of this:
 23 of the 36 tone pairs are lopsided enough (≥80% one direction) to be treated
 as hard rules. The rest are genuinely free, including every same-tone pair.
 
+The two claims above are the ones that contradict the traditional ladder, so
+here they are with 95% Wilson intervals:
+
+| pair | direction | rate | n | 95% CI |
+| --- | --- | --- | --- | --- |
+| 6→5 | rises | 96.7% | 1559 | 95.7% – 97.5% |
+| 5→6 | falls | 92.8% | 1216 | 91.2% – 94.1% |
+| 4→1 | rises | 97.1% | 725 | 95.6% – 98.1% |
+| 4→6 | rises | 97.9% | 1911 | 97.2% – 98.5% |
+
 **Sections have measurable pitch.** Relative to the song median: verse -3,
 prechorus -1, chorus +1, bridge +2. Your verse-to-chorus lift is about four
 semitones.
@@ -250,6 +260,41 @@ Be aware of these before trusting it:
   sense of rhythm, phrasing, or what the song is about. A tone-correct line is
   not automatically a good line.
 
+## Does it hold up on songs it has never seen?
+
+The numbers above are descriptive: they describe the corpus the model was built
+from. The question that matters is whether the rules generalise, so
+`scripts/evaluate.py` runs 5-fold cross-validation **split by song**, builds a
+model from the training songs only, and scores it on the held-out ones.
+
+Splitting by song rather than by syllable matters. Syllables inside one song
+are not independent, so a random split would put the same melody on both sides
+and inflate every score.
+
+The task: given two adjacent syllables and their tones, predict whether the
+melody rises, holds, or falls.
+
+| predictor | held-out accuracy |
+| --- | --- |
+| always guess the most common direction | 40.7% |
+| the traditional 0243 four-level ladder | 71.1% |
+| measured tone heights | 80.4% |
+| measured transition table | **81.8%** |
+
+**The measured model beats the 0243 ladder by 10.7 points on songs it has never
+seen**, and the gap is far larger than the spread across folds (sd ≈ 0.011).
+
+The hard rules cantojam actually enforces, learned from training songs only,
+are broken by **4.22%** of held-out pairs (fold range 3.51% to 4.99%). Compare
+that to the 3.91% in-sample figure from `validate.py`: the model loses only
+about a third of a point when moved onto unseen songs, which is the evidence
+that these rules are a real property of the genre rather than an artefact of
+105 particular songs.
+
+```bash
+python scripts/evaluate.py Cantopop-corpus/Humdrum-files
+```
+
 ## Contributing
 
 **The most useful thing you can do is add a song.** Every number above comes
@@ -279,8 +324,10 @@ python scripts/validate.py Cantopop-corpus/Humdrum-files corpus/
 Pass any number of directories and they pool. Contributed songs in `corpus/`
 fold in alongside the upstream corpus.
 
-`validate.py` runs the checker back over the corpus it was built from. Real
-Cantopop should pass its own rules, and it does:
+`validate.py` runs the checker back over the corpus it was built from, which
+only shows the model is self-consistent. For the harder question, use
+`evaluate.py` above. Real Cantopop should at least pass its own rules, and it
+does:
 
 ```
 105 songs, 37772 adjacent syllable pairs

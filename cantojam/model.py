@@ -1,6 +1,7 @@
 """The measured tone model: how Cantonese tones sit against melody."""
 
 import json
+import math
 import os
 
 DATA = os.path.join(os.path.dirname(__file__), "data")
@@ -17,6 +18,23 @@ TONE_NAMES = {
     "5": "陽上 low rising",
     "6": "陽去 low level",
 }
+
+
+def wilson(successes, total, z=1.96):
+    """95% confidence interval for a proportion.
+
+    Wilson rather than the textbook normal interval, because these proportions
+    sit close to 1 where the normal interval runs past 100% and stops meaning
+    anything.
+    """
+    if not total:
+        return (0.0, 0.0)
+    p = successes / total
+    denominator = 1 + z * z / total
+    centre = (p + z * z / (2 * total)) / denominator
+    spread = z * math.sqrt(p * (1 - p) / total
+                           + z * z / (4 * total * total)) / denominator
+    return (max(0.0, centre - spread), min(1.0, centre + spread))
 
 
 class ToneModel:
@@ -96,6 +114,15 @@ class ToneModel:
         if not stats:
             return 0.0
         return max(stats["up"], stats["down"], stats["same"])
+
+    def interval_for(self, first, second, direction="up"):
+        """Observed rate for one direction, with its 95% interval."""
+        stats = self.transition(first, second)
+        if not stats:
+            return None
+        rate = stats[direction]
+        low, high = wilson(round(rate * stats["n"]), stats["n"])
+        return {"rate": rate, "n": stats["n"], "low": low, "high": high}
 
     def section_offset(self, section):
         """Median pitch offset for a section name, in semitones."""
