@@ -260,6 +260,39 @@ Be aware of these before trusting it:
   sense of rhythm, phrasing, or what the song is about. A tone-correct line is
   not automatically a good line.
 
+## Melisma: the tone governs the onset, not the run
+
+15.9% of syllables in the corpus are sung over more than one note, hiding about
+6,500 notes that cantojam ignores by keeping each syllable on its first pitch.
+That was a convenience, so `scripts/melisma.py` tested whether it is safe.
+
+The natural hypothesis is that a rising-contour tone (2, 5) should have a
+rising melisma and a falling one (4) a falling melisma. It is wrong:
+
+| carrying tone | n | rises | level | falls | net |
+| --- | --- | --- | --- | --- | --- |
+| 1 陰平 high level | 1683 | 0.4% | 73.5% | 26.1% | −0.68 |
+| 2 陰上 high rising | 871 | 1.1% | 75.8% | 23.1% | −0.61 |
+| 3 陰去 mid level | 1244 | 1.4% | 88.7% | 9.8% | −0.23 |
+| 6 陽去 low level | 923 | 1.3% | 87.5% | 11.2% | −0.23 |
+| 5 陽上 low rising | 807 | 1.5% | 93.6% | 5.0% | −0.08 |
+| 4 陽平 low falling | 501 | **5.0%** | 93.4% | 1.6% | **+0.13** |
+
+The rising contours rise *least* (1.3%, n=1678), and the one tone that rises
+more than the rest is tone 4, the lowest and a falling contour (5.0%, n=501).
+
+What does predict the movement is where the tone sits: **r = −0.940** between a
+tone's measured height and the net movement of its melismas. High tones can
+only melisma downward, the lowest one can only go up. That is a ceiling and
+floor effect, not contour.
+
+So keeping a melismatic syllable on its first note is correct, and the run
+itself is predictable from tone height rather than something to ignore.
+
+```bash
+python scripts/melisma.py Cantopop-corpus/Humdrum-files
+```
+
 ## Does it hold up on songs it has never seen?
 
 The numbers above are descriptive: they describe the corpus the model was built
