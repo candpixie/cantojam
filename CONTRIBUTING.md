@@ -12,9 +12,15 @@ it. Anything outside that is new information. See
 [`corpus/TEMPLATE.krn`](corpus/TEMPLATE.krn) to start from.
 
 ```bash
-cp corpus/TEMPLATE.krn corpus/X0001.krn   # edit it
+python scripts/scaffold_krn.py lyrics.txt --id X0001 --title 歌名 > corpus/X0001.krn
+# replace each placeholder pitch with the note actually sung, drop the
+# SKELETON line, then:
 python scripts/check_krn.py corpus/
 ```
+
+`scaffold_krn.py` writes the Humdrum structure and looks up the jyutping, so
+the only work left is the listening. It flags unreadable characters and every
+polyphone it guessed.
 
 Open a pull request with the `.krn` file. One song is a real contribution.
 

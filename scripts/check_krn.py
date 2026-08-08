@@ -22,6 +22,7 @@ HAN = re.compile(r"^[㐀-䶿一-鿿豈-﫿]$")
 SECTIONS = {"verse", "prechorus", "chorus", "bridge", "coda", "interlude",
             "outro", "intro", "strophe", "guitar solo", "refrain"}
 REQUIRED_RECORDS = ["OTL", "OTA"]
+SKELETON_MARKER = "SKELETON"
 
 
 def check_file(path):
@@ -41,6 +42,11 @@ def check_file(path):
         if line.startswith("!!!"):
             key, _, value = line[3:].partition(":")
             records[key.strip()] = value.strip()
+            if SKELETON_MARKER in value:
+                errors.append(
+                    f"{os.path.basename(path)}: still a scaffold_krn.py "
+                    f"skeleton. Replace the placeholder pitches with the notes "
+                    f"actually sung, then delete the !!!ONB: SKELETON line.")
             continue
         if line.startswith("!"):
             continue
